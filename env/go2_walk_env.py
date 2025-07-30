@@ -22,13 +22,13 @@ class Go2Env(DirectRLEnv):
         self.reward_weights = {
             "tracking_lin_vel": 1.0,      # Most important - command tracking
             "tracking_ang_vel": 1.0,      # Most important - command tracking
-            "height_penalty": -0.2,       # Medium penalty
-            "lin_vel_z_penalty": -0.2,    # Small penalty for vertical movement
-            "ang_vel_xy_penalty": -0.4,   # Medium penalty for roll/pitch rates
-            "orientation_penalty": -0.7,  # Important penalty for tipping
-            "torque_penalty": -0.01,      # Small penalty for energy efficiency
-            "joint_acc_penalty": -0.01,   # Small penalty for smooth motion
-            "action_rate_penalty": -0.04, # Small penalty for action smoothness
+            "height_penalty": 0.02,       # Medium penalty
+            "lin_vel_z_penalty": 0.02,    # Small penalty for vertical movement
+            "ang_vel_xy_penalty": 0.02,   # Medium penalty for roll/pitch rates
+            "orientation_penalty": 0.02,  # Important penalty for tipping
+            "torque_penalty": 0.001,      # Small penalty for energy efficiency
+            "joint_acc_penalty": 0.001,   # Small penalty for smooth motion
+            "action_rate_penalty": 0.01,
         }
 
     def _setup_scene(self):
@@ -48,7 +48,6 @@ class Go2Env(DirectRLEnv):
         self._commands[env_ids, 0] = torch.zeros_like(self._commands[env_ids, 0]).uniform_(-1.0, 1.0)
         self._commands[env_ids, 1] = torch.zeros_like(self._commands[env_ids, 0]).uniform_(-1.0, 1.0)
         self._commands[env_ids, 2] = torch.zeros_like(self._commands[env_ids, 0]).uniform_(-1.0, 1.0)
-        
 
     def _pre_physics_step(self, actions):
         self._actions = actions.clone()
@@ -153,23 +152,23 @@ class Go2Env(DirectRLEnv):
         reward_tracking_ang_vel = torch.exp(-ang_vel_error / 0.25)  # Normalize error scale
         rewards += self.reward_weights["tracking_ang_vel"] * reward_tracking_ang_vel
 
-        # 2. Height penalty
+        # # 2. Height penalty
         ref_height = 0.35
         height_error = torch.square(ref_height - self._robot.data.root_state_w[:, 2])
         height_penalty = torch.exp(-height_error / 0.01)  # Normalize to 0-1 range
         rewards += self.reward_weights["height_penalty"] * height_penalty
 
-        # 3. Penalize linear velocity in z (vertical velocity)
+        # # 3. Penalize linear velocity in z (vertical velocity)
         lin_vel_z_error = torch.square(self._robot.data.root_lin_vel_b[:, 2])
         lin_vel_z_penalty = torch.exp(-lin_vel_z_error / 0.1)  # Normalize
         rewards += self.reward_weights["lin_vel_z_penalty"] * lin_vel_z_penalty
 
-        # 4. Penalize angular velocity in x and y (roll and pitch rate)
+        # # 4. Penalize angular velocity in x and y (roll and pitch rate)
         ang_vel_xy_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b[:, :2]), dim=1)
         ang_vel_xy_penalty = torch.exp(-ang_vel_xy_error / 0.5)  # Normalize
         rewards += self.reward_weights["ang_vel_xy_penalty"] * ang_vel_xy_penalty
 
-        # 5. Stability Reward - Penalize deviations from upright orientation
+        # # 5. Stability Reward - Penalize deviations from upright orientation
         roll, pitch, yaw = euler_xyz_from_quat(self._robot.data.root_link_quat_w)
         orientation_error = torch.square(roll) + torch.square(pitch)
         orientation_penalty = torch.exp(-orientation_error / 0.1)  # Normalize
@@ -190,4 +189,4 @@ class Go2Env(DirectRLEnv):
         action_rate_penalty = torch.exp(-action_rate_error / 1.0)  # Normalize
         rewards += self.reward_weights["action_rate_penalty"] * action_rate_penalty
 
-        return torch.sum(rewards, dim=0)
+        return rewards

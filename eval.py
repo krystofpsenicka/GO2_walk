@@ -19,6 +19,7 @@ import gymnasium
 import torch
 
 from env.go2_walk_cfg import Go2EnvCfg
+from RLAlg.nn.steps import StochasticContinuousPolicyStep
 
 from model import GaussianActor
 
@@ -46,14 +47,12 @@ class Trainer:
 
         for i in range(1000):
             with torch.no_grad():
-                _, action, _ = self.actor.forward(obs)
+                policy_step: StochasticContinuousPolicyStep = self.actor.forward(obs)
+                action = policy_step.action
                 #action = torch.rand_like(action, device=self.device)
-            next_obs, _, terminate, timeout, _ = self.env.step(action)
+            next_obs, reward, terminate, timeout, _ = self.env.step(action)
 
-            print(terminate)
-            print(timeout)
-
-            print("----------")
+            print(reward)
 
             obs = next_obs["policy"].to(self.device)
 

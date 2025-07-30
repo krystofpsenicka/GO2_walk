@@ -13,6 +13,8 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
+from tqdm import trange
+
 import gymnasium
 import torch
 import torch.nn as nn
@@ -22,6 +24,7 @@ import numpy as np
 # Import from RLAlg library
 from RLAlg.buffer.replay_buffer import ReplayBuffer, compute_gae
 from RLAlg.alg.ppo import PPO as RLAlg_PPO_Loss_Calculator
+from RLAlg.nn.steps import StochasticContinuousPolicyStep, ValueStep
 
 from env.go2_walk_cfg import Go2EnvCfg
 from model import GaussianActor, Critic
@@ -50,11 +53,16 @@ class PPOAgent:
 
     def get_action_and_value(self, obs):
         with torch.no_grad():
-            pi, action, log_prob = self.actor(obs)
-            value = self.critic(obs)
+            policy_step: StochasticContinuousPolicyStep = self.actor(obs)
+            value_step: ValueStep = self.critic(obs)
+
+        action = policy_step.action
+        log_prob = policy_step.log_prob
+        value = value_step.value
+
         return action, log_prob, value
 
-    def update(self, rollout_buffer, ppo_epoch, num_mini_batch):
+    def update(self, rollout_buffer:ReplayBuffer, ppo_epoch:int, num_mini_batch:int):
         batch_keys = ["observations", "actions", "log_probs", "rewards", "values", "returns", "advantages"]
 
         value_loss_epoch = 0
@@ -90,6 +98,8 @@ class Trainer:
     def __init__(self, observation_dim=45, action_dim=12, rollout_steps=25):
         self.cfg = Go2EnvCfg()
 
+        self.cfg.scene.num_envs = 4096
+
         self.env = gymnasium.make("Go2Walk-v0", cfg=self.cfg)
 
         self.device = self.env.unwrapped.device
@@ -102,7 +112,7 @@ class Trainer:
         # PPO Hyperparameters
         self.steps_per_rollout = rollout_steps
         self.num_mini_batch = 5 * 4096 
-        self.ppo_epoch = 5     
+        self.ppo_epoch = 10     
         self.clip_param = 0.2   
         self.value_loss_coef = 0.5 
         self.entropy_coef = 0.01   
@@ -123,18 +133,17 @@ class Trainer:
 
         # Initialize ReplayBuffer
         self.rollout_buffer = ReplayBuffer(self.num_envs, self.steps_per_rollout)
-        self.rollout_buffer.create_storage_space("observations", [self.observation_dim])
-        self.rollout_buffer.create_storage_space("actions", [self.action_dim])
-        self.rollout_buffer.create_storage_space("log_probs")
-        self.rollout_buffer.create_storage_space("rewards")
-        self.rollout_buffer.create_storage_space("values")
-        self.rollout_buffer.create_storage_space("dones")
+        self.rollout_buffer.create_storage_space("observations", (self.observation_dim,))
+        self.rollout_buffer.create_storage_space("actions", (self.action_dim, ))
+        self.rollout_buffer.create_storage_space("log_probs", ())
+        self.rollout_buffer.create_storage_space("rewards", ())
+        self.rollout_buffer.create_storage_space("values", ())
+        self.rollout_buffer.create_storage_space("dones", ())
 
     def train(self, num_iterations=1000):
         obs, _ = self.env.reset()
 
-        for j in range(num_iterations):
-            self.rollout_buffer.reset() # Clear buffer for new rollout
+        for j in trange(num_iterations):
 
             # Collect data
             for step in range(self.steps_per_rollout):
@@ -148,21 +157,22 @@ class Trainer:
                 record = {
                     "observations": obs["policy"],
                     "actions": action,
-                    "log_probs": log_prob.squeeze(-1),
+                    "log_probs": log_prob,
                     "rewards": reward,
-                    "values": value.squeeze(-1),
-                    "dones": done.float() # Convert bool to float for consistency
+                    "values": value,
+                    "dones": done # Convert bool to float for consistency
                 }
 
                 self.rollout_buffer.add_records(record)
 
                 obs = next_obs
                 
+                '''
                 if "episode" in info:
                     rewards_finished_episodes = [r for r in info['episode']['r'] if r != 0]
                     if rewards_finished_episodes:
                         print(f"Iteration: {j}, Step: {step}, Mean Episode Reward: {np.mean(rewards_finished_episodes):.2f}")
-
+                '''
 
             # After collecting rollout, compute returns and advantages
             with torch.no_grad():
@@ -174,7 +184,7 @@ class Trainer:
                 self.rollout_buffer.data["rewards"],
                 self.rollout_buffer.data["values"],
                 self.rollout_buffer.data["dones"],
-                last_value.squeeze(-1), # last_value is (num_envs, 1), make it (num_envs,)
+                last_value, # last_value is (num_envs, 1), make it (num_envs,)
                 self.gamma,
                 self.gae_lambda
             )
@@ -185,7 +195,7 @@ class Trainer:
             # Update the agent
             self.agent.update(self.rollout_buffer, self.ppo_epoch, self.num_mini_batch)
 
-            print(f"Iteration {j+1}/{num_iterations} completed.")
+            #print(f"Iteration {j+1}/{num_iterations} completed.")
         
         torch.save(self.agent.actor.state_dict(), "ppo_actor.pth")
 
