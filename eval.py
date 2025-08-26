@@ -45,7 +45,7 @@ class Trainer:
 
         print(obs)
 
-        for i in range(1000):
+        for i in range(2500):
             with torch.no_grad():
                 policy_step: StochasticContinuousPolicyStep = self.actor.forward(obs)
                 action = policy_step.action

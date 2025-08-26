@@ -20,15 +20,13 @@ class Go2Env(DirectRLEnv):
         self._commands = torch.zeros(self.num_envs, 3, device=self.device)
 
         self.reward_weights = {
-            "tracking_lin_vel": 1.0,      # Most important - command tracking
-            "tracking_ang_vel": 1.0,      # Most important - command tracking
-            "height_penalty": 0.02,       # Medium penalty
-            "lin_vel_z_penalty": 0.02,    # Small penalty for vertical movement
-            "ang_vel_xy_penalty": 0.02,   # Medium penalty for roll/pitch rates
-            "orientation_penalty": 0.02,  # Important penalty for tipping
-            "torque_penalty": 0.001,      # Small penalty for energy efficiency
-            "joint_acc_penalty": 0.001,   # Small penalty for smooth motion
-            "action_rate_penalty": 0.01,
+            "tracking_lin_vel": 10.0,      # Most important - command tracking
+            "tracking_ang_vel": 10.0,      # Most important - command tracking
+            "height_penalty": 1.7,
+            "lin_vel_z_penalty": 2.0,
+            "orientation_penalty": 1.5,
+            "pose_similarity": 2.85,
+            "action_rate_penalty": 3.8,
         }
 
     def _setup_scene(self):
@@ -144,49 +142,40 @@ class Go2Env(DirectRLEnv):
         # 1. Command Tracking Rewards (most important)
         # Reward for tracking linear velocity in x and y
         lin_vel_error = torch.sum(torch.square(self._commands[:, :2] - self._robot.data.root_lin_vel_b[:, :2]), dim=1)
-        reward_tracking_lin_vel = torch.exp(-lin_vel_error / 0.25)  # Normalize error scale
+        # reward_tracking_lin_vel = torch.exp(-lin_vel_error / 0.25)  # Normalize error scale
+        reward_tracking_lin_vel = torch.exp(-lin_vel_error)
         rewards += self.reward_weights["tracking_lin_vel"] * reward_tracking_lin_vel
 
         # Reward for tracking angular velocity in z
         ang_vel_error = torch.square(self._commands[:, 2] - self._robot.data.root_ang_vel_b[:, 2])
-        reward_tracking_ang_vel = torch.exp(-ang_vel_error / 0.25)  # Normalize error scale
+        reward_tracking_ang_vel = torch.exp(-ang_vel_error)  # Normalize error scale
         rewards += self.reward_weights["tracking_ang_vel"] * reward_tracking_ang_vel
 
         # # 2. Height penalty
-        ref_height = 0.35
+        ref_height = 0.3
         height_error = torch.square(ref_height - self._robot.data.root_state_w[:, 2])
-        height_penalty = torch.exp(-height_error / 0.01)  # Normalize to 0-1 range
+        height_penalty = -height_error
         rewards += self.reward_weights["height_penalty"] * height_penalty
 
         # # 3. Penalize linear velocity in z (vertical velocity)
         lin_vel_z_error = torch.square(self._robot.data.root_lin_vel_b[:, 2])
-        lin_vel_z_penalty = torch.exp(-lin_vel_z_error / 0.1)  # Normalize
+        lin_vel_z_penalty = -lin_vel_z_error
         rewards += self.reward_weights["lin_vel_z_penalty"] * lin_vel_z_penalty
-
-        # # 4. Penalize angular velocity in x and y (roll and pitch rate)
-        ang_vel_xy_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b[:, :2]), dim=1)
-        ang_vel_xy_penalty = torch.exp(-ang_vel_xy_error / 0.5)  # Normalize
-        rewards += self.reward_weights["ang_vel_xy_penalty"] * ang_vel_xy_penalty
 
         # # 5. Stability Reward - Penalize deviations from upright orientation
         roll, pitch, yaw = euler_xyz_from_quat(self._robot.data.root_link_quat_w)
         orientation_error = torch.square(roll) + torch.square(pitch)
-        orientation_penalty = torch.exp(-orientation_error / 0.1)  # Normalize
+        orientation_penalty = -orientation_error
         rewards += self.reward_weights["orientation_penalty"] * orientation_penalty
 
-        # 6. Joint Regularization - Penalize large joint torques
-        torque_error = torch.sum(torch.square(self._robot.data.applied_torque), dim=1)
-        torque_penalty = torch.exp(-torque_error / 100.0)  # Normalize based on typical torque magnitudes
-        rewards += self.reward_weights["torque_penalty"] * torque_penalty
-
-        # 7. Penalize large joint accelerations
-        joint_acc_error = torch.sum(torch.square(self._robot.data.joint_acc), dim=1)
-        joint_acc_penalty = torch.exp(-joint_acc_error / 10.0)  # Normalize
-        rewards += self.reward_weights["joint_acc_penalty"] * joint_acc_penalty
+        # # 6. Pose similarity reward
+        joint_pos_error = torch.sum(torch.square(self._robot.data.joint_pos - self._robot.data.default_joint_pos), dim=1)
+        pose_similarity = -joint_pos_error
+        rewards += self.reward_weights["pose_similarity"] * pose_similarity
 
         # 8. Action Regularization - Penalize large changes in actions
         action_rate_error = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
-        action_rate_penalty = torch.exp(-action_rate_error / 1.0)  # Normalize
+        action_rate_penalty = -action_rate_error
         rewards += self.reward_weights["action_rate_penalty"] * action_rate_penalty
 
         return rewards
