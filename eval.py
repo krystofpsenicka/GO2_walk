@@ -35,7 +35,7 @@ class Trainer:
         self.device = self.env.unwrapped.device
 
         self.actor = GaussianActor(self.observation_dim, self.action_dim, [128, 128]).to(self.device)
-        self.actor.load_state_dict(torch.load("ppo_actor.pth", map_location=self.device))
+        self.actor.load_state_dict(torch.load("policies/ppo_actor_latest_16h_10_10_0-7_2_0-6_2-45_3-55.pth", map_location=self.device))
         self.actor.eval()
 
     

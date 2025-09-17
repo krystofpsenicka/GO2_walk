@@ -22,11 +22,11 @@ class Go2Env(DirectRLEnv):
         self.reward_weights = {
             "tracking_lin_vel": 10.0,      # Most important - command tracking
             "tracking_ang_vel": 10.0,      # Most important - command tracking
-            "height_penalty": 1.7,
+            "height_penalty": 0.7,
             "lin_vel_z_penalty": 2.0,
-            "orientation_penalty": 1.5,
+            "orientation_penalty": 0.7,
             "pose_similarity": 2.85,
-            "action_rate_penalty": 3.8,
+            "action_rate_penalty": 3.95,
         }
 
     def _setup_scene(self):

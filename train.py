@@ -201,7 +201,7 @@ class Trainer:
 
 def main():
     trainer = Trainer()
-    trainer.train(3600 * 3 +1000)
+    trainer.train(3600 * 9 + 1000)
     trainer.env.close()
 
 if __name__ == "__main__":
