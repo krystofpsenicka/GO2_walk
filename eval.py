@@ -43,12 +43,13 @@ class Trainer:
         obs, info = self.env.reset()
         obs = obs["policy"].to(self.device)
 
-        print(obs)
+        print(f"obs: {obs}")
 
         for i in range(2500):
             with torch.no_grad():
                 policy_step: StochasticContinuousPolicyStep = self.actor.forward(obs)
                 action = policy_step.action
+                print(f"action: {action}")
                 #action = torch.rand_like(action, device=self.device)
             next_obs, reward, terminate, timeout, _ = self.env.step(action)
 
