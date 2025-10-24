@@ -32,8 +32,8 @@ DEFAULT_JOINT_POS_ISAAC = np.array([
    -0.1, 1.0, -1.5,
 ], dtype=np.float64)
 
-ISAAC_TO_MJ = np.array([3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8], dtype=int)
-MJ_TO_ISAAC = ISAAC_TO_MJ
+ISAAC_TO_MJ = np.array([0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11], dtype=int)
+MJ_TO_ISAAC = np.argsort(ISAAC_TO_MJ)
 
 def build_obs(data, prev_actions_isaac, commands, default_joint_pos_isaac):
     commands_obs = np.array(commands, dtype=np.float32)
@@ -102,7 +102,7 @@ def main():
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
 
-        for _ in range(30000):
+        for i in range(30000):
 
             obs = build_obs(data, prev_actions_isaac, commands, DEFAULT_JOINT_POS_ISAAC)
             obs_tensor = torch.from_numpy(obs).float().unsqueeze(0)
@@ -127,12 +127,8 @@ def main():
             else:
                 tau = np.clip(tau, -EFFORT_LIMIT, EFFORT_LIMIT)
 
-            data.ctrl[:] = tau
-            # data.qpos[7:] = target_pos_mj
-
-            # target = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.float32)
-            # data.ctrl[:] = 1 * (target - qpos_mj) - 0.1 * qvel_mj
-            # data.ctrl[:] = target
+            # data.ctrl[:] = tau
+            data.qpos[7:] = target_pos_mj
 
             for i in range(4):
                 mujoco.mj_step(model, data)

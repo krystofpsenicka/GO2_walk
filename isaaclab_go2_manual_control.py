@@ -22,6 +22,8 @@ world.scene.add_default_ground_plane()
 # Add the Go2 robot to the stage
 add_reference_to_stage(GO2_USD_PATH, GO2_PRIM_PATH)
 go2 = Articulation(paths=GO2_PRIM_PATH)
+go2.set_world_poses([[0, 0, 0.4]])
+go2.set_link_masses([0])
 
 # Initialize physics scene
 world.reset()
@@ -38,17 +40,20 @@ print(f"Go2 DOF count: {num_joints}")
 
 # Create some arbitrary joint positions
 # For example, small alternating offsets
-q = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+q_mj = np.array([-0.2, -0.2, -1, -0.2, -0.2, -1, -0.2, -0.2, -1, -0.2, -0.2, -1], dtype=np.float32)
+
+ISAAC_TO_MJ = np.array([0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11], dtype=int)
+MJ_TO_ISAAC = np.argsort(ISAAC_TO_MJ)
 
 # Apply joint positions
-go2.set_dof_positions(q)
+go2.set_dof_positions(q_mj[MJ_TO_ISAAC])
 
 # Print applied joints
-for name, val in zip(joint_names, q):
+for name, val in zip(joint_names, q_mj[MJ_TO_ISAAC]):
     print(f"{name}: {val:.3f}")
 
 # Step a few frames to visualize
-for _ in range(2000):
+for _ in range(20000):
     world.step(render=True)
 
 simulation_app.close()
