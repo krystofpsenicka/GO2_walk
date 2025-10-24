@@ -26,10 +26,10 @@ ACTION_SCALE = 0.25
 
 # Isaac ordering for joints used in config:
 DEFAULT_JOINT_POS_ISAAC = np.array([
-    0.1, 0.8, -1.5,
-   -0.1, 0.8, -1.5,
-    0.1, 1.0, -1.5,
-   -0.1, 1.0, -1.5,
+    0.1000, -0.1000,  0.1000,
+    -0.1000,  0.8000,  0.8000,
+    1.0000,  1.0000, -1.5000,
+    -1.5000, -1.5000, -1.5000
 ], dtype=np.float64)
 
 ISAAC_TO_MJ = np.array([0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11], dtype=int)
@@ -81,7 +81,7 @@ def main():
     default_mj = DEFAULT_JOINT_POS_ISAAC[ISAAC_TO_MJ]
     data.qpos[7:] = default_mj.copy()
     data.qvel[6:] = np.full(12, 0, dtype = np.float64)
-    # mujoco.mj_forward(model, data)
+    #mujoco.mj_forward(model, data)
 
     prev_actions_isaac = np.zeros(ACTION_DIM, dtype=np.float32)
     commands = np.random.uniform(-1.0, 1.0, size=(3,)).astype(np.float32)
@@ -111,24 +111,24 @@ def main():
                 step: StochasticContinuousPolicyStep = actor.forward(obs_tensor)
                 action_raw = step.action.cpu().numpy().squeeze(0)
 
-            print(f"action: {step.action}")
-            action_raw = torch.rand_like(step.action).cpu().numpy().squeeze(0)
-            target_pos_isaac = DEFAULT_JOINT_POS_ISAAC + ACTION_SCALE * action_raw
-            target_pos_mj = target_pos_isaac[ISAAC_TO_MJ]
-
-            print(f"processed action: {target_pos_isaac}")
+            action_raw = torch.zeros_like(step.action).cpu().numpy().squeeze(0)
+            print(f"action: {action_raw}")
+            #target_pos_isaac = DEFAULT_JOINT_POS_ISAAC + ACTION_SCALE * action_raw
+            #target_pos_mj = target_pos_isaac[ISAAC_TO_MJ]
+            target_pos_mj = default_mj
+            print(f"processed action: {target_pos_mj}")
             qpos_mj = np.array(data.qpos[7:], dtype=np.float64)
             qvel_mj = np.array(data.qvel[6:], dtype=np.float64)
 
-            tau = KP * (target_pos_mj - qpos_mj) - KD * qvel_mj
+            tau = kp_mj * (target_pos_mj - qpos_mj) - kd_mj * qvel_mj
 
             if has_ctrlrange and tau.shape[0] == act_min.shape[0]:
                 tau = np.minimum(np.maximum(tau, act_min), act_max)
             else:
                 tau = np.clip(tau, -EFFORT_LIMIT, EFFORT_LIMIT)
 
-            # data.ctrl[:] = tau
-            data.qpos[7:] = target_pos_mj
+            data.ctrl[:] = tau
+            #data.qpos[7:] = target_pos_mj
 
             for i in range(4):
                 mujoco.mj_step(model, data)
