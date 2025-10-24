@@ -102,8 +102,7 @@ def main():
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
 
-        for _ in range(400):
-            t0 = time.time()
+        for _ in range(30000):
 
             obs = build_obs(data, prev_actions_isaac, commands, DEFAULT_JOINT_POS_ISAAC)
             obs_tensor = torch.from_numpy(obs).float().unsqueeze(0)
@@ -121,7 +120,7 @@ def main():
             qpos_mj = np.array(data.qpos[7:], dtype=np.float64)
             qvel_mj = np.array(data.qvel[6:], dtype=np.float64)
 
-            tau = kp_mj * (target_pos_mj - qpos_mj) - kd_mj * qvel_mj
+            tau = KP * (target_pos_mj - qpos_mj) - KD * qvel_mj
 
             if has_ctrlrange and tau.shape[0] == act_min.shape[0]:
                 tau = np.minimum(np.maximum(tau, act_min), act_max)
@@ -131,7 +130,9 @@ def main():
             data.ctrl[:] = tau
             # data.qpos[7:] = target_pos_mj
 
-            # data.qpos[7:] = np.full(12, -0.4)
+            # target = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+            # data.ctrl[:] = 1 * (target - qpos_mj) - 0.1 * qvel_mj
+            # data.ctrl[:] = target
 
             for i in range(4):
                 mujoco.mj_step(model, data)
