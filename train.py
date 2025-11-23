@@ -195,7 +195,7 @@ class Trainer:
             # Update the agent
             self.agent.update(self.rollout_buffer, self.ppo_epoch, self.num_mini_batch)
 
-            #print(f"Iteration {j+1}/{num_iterations} completed.")
+            print(f"Iteration {j+1}/{num_iterations} completed.")
         
         torch.save(self.agent.actor.state_dict(), "ppo_actor.pth")
 

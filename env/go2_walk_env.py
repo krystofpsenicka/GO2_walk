@@ -20,8 +20,8 @@ class Go2Env(DirectRLEnv):
         self._commands = torch.zeros(self.num_envs, 3, device=self.device)
 
         self.reward_weights = {
-            "tracking_lin_vel": 10.0,      # Most important - command tracking
-            "tracking_ang_vel": 10.0,      # Most important - command tracking
+            "tracking_lin_vel": 10.0,
+            "tracking_ang_vel": 10.0,
             "height_penalty": 0.7,
             "lin_vel_z_penalty": 2.0,
             "orientation_penalty": 0.7,
